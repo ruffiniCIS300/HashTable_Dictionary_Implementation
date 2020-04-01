@@ -1,5 +1,5 @@
 ﻿/* Dictionary.cs
- * Author: Rod Howell
+ * Author: Nick Ruffini
  */
 using System;
 using System.Collections.Generic;
@@ -11,21 +11,29 @@ using KansasStateUniversity.TreeViewer2;
 namespace Ksu.Cis300.NameLookup
 {
     /// <summary>
-    /// A generic dictionary in which keys must implement IComparable.
+    /// A generic dictionary using Hash Tables
     /// </summary>
     /// <typeparam name="TKey">The key type.</typeparam>
     /// <typeparam name="TValue">The value type.</typeparam>
-    public class Dictionary<TKey, TValue> where TKey : IComparable<TKey>
+    public class Dictionary<TKey, TValue>
     {
         /// <summary>
-        /// The keys and values in the dictionary.
+        /// The keys and values in the dictionary stored in an array of linked lists!
         /// </summary>
-        private BinaryTreeNode<KeyValuePair<TKey, TValue>> _elements = null;
+        private LinkedListCell<KeyValuePair<TKey, TValue>>[] _elements = new LinkedListCell<KeyValuePair<TKey, TValue>>[23];
 
         /// <summary>
-        /// Gets a drawing of the underlying binary search tree.
+        /// Gets the hash code of a key and returns it's array index!
         /// </summary>
-        public TreeForm Drawing => new TreeForm(_elements, 100);
+        /// <param name="k"> Key that we are finding the index of in the array! </param>
+        /// <returns> int value representing the index where the key is located (or to be) </returns>
+        private int GetLocation(TKey k)
+        {
+            int code = k.GetHashCode();
+            int stripped = code & 0x7fffffff;
+            int result = stripped % _elements.Length;
+            return result;
+        }
 
         /// <summary>
         /// Checks to see if the given key is null, and if so, throws an
@@ -41,65 +49,51 @@ namespace Ksu.Cis300.NameLookup
         }
 
         /// <summary>
-        /// Finds the given key in the given binary search tree.
+        /// Steps through a linked list, trying to find the designated key. If not found, returns null
         /// </summary>
-        /// <param name="key">The key.</param>
-        /// <param name="t">The binary search tree.</param>
-        /// <returns>The node containing key, or null if the key is not found.</returns>
-        private static BinaryTreeNode<KeyValuePair<TKey, TValue>> Find(TKey key, BinaryTreeNode<KeyValuePair<TKey, TValue>> t)
+        /// <param name="k"> Key we are looking for in list </param>
+        /// <param name="list"> Linked List we are iterating through </param>
+        /// <returns></returns>
+        private LinkedListCell<KeyValuePair<TKey, TValue>> GetCell(TKey k, LinkedListCell<KeyValuePair<TKey, TValue>> list)
         {
-            if (t == null)
+            LinkedListCell<KeyValuePair<TKey, TValue>> temp = list;
+            while (temp != null)
             {
-                return null;
-            }
-            else
-            {
-                int comp = key.CompareTo(t.Data.Key);
-                if (comp == 0)
+                if (k.Equals(temp.Data.Key))
                 {
-                    return t;
-                }
-                else if (comp < 0)
-                {
-                    return Find(key, t.LeftChild);
+                    return temp;
                 }
                 else
                 {
-                    return Find(key, t.RightChild);
+                    temp = temp.Next;
                 }
             }
+            return null;
         }
 
         /// <summary>
-        /// Builds the binary search tree that results from adding the given key and value to the given tree.
-        /// If the tree already contains the given key, throws an ArgumentException.
+        /// Inserts the given cell into the front of the linked list at the designated array location!
         /// </summary>
-        /// <param name="t">The binary search tree.</param>
-        /// <param name="k">The key.</param>
-        /// <param name="v">The value.</param>
-        /// <returns>The binary search tree that results from adding k and v to t.</returns>
-        private static BinaryTreeNode<KeyValuePair<TKey, TValue>> Add(BinaryTreeNode<KeyValuePair<TKey, TValue>> t, TKey k, TValue v)
+        /// <param name="cell"> Cell that is being added to the linked list </param>
+        /// <param name="loc"> Location in the array we are adding this cell to </param>
+        private void Insert(LinkedListCell<KeyValuePair<TKey, TValue>> cell, int loc)
         {
-            if (t == null)
-            {
-                return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(new KeyValuePair<TKey, TValue>(k, v), null, null);
-            }
-            else
-            {
-                int comp = k.CompareTo(t.Data.Key);
-                if (comp == 0)
-                {
-                    throw new ArgumentException();
-                }
-                else if (comp < 0)
-                {
-                    return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(t.Data, Add(t.LeftChild, k, v), t.RightChild);
-                }
-                else
-                {
-                    return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(t.Data, t.LeftChild, Add(t.RightChild, k, v));
-                }
-            }
+            cell.Next = _elements[loc];
+            _elements[loc] = cell;
+        }
+
+        /// <summary>
+        /// Creates a new cell and adds it to the array
+        /// </summary>
+        /// <param name="k"> Key value for the new cell </param>
+        /// <param name="v"> Value parameter for the cell </param>
+        /// <param name="loc"> Index in the array we are adding this cell </param>
+        private void Insert(TKey k, TValue v, int loc)
+        {
+            LinkedListCell<KeyValuePair<TKey, TValue>> newCell = new LinkedListCell<KeyValuePair<TKey, TValue>>();
+            newCell.Data = new KeyValuePair<TKey, TValue>(k, v);
+            Insert(newCell, loc);
+
         }
 
         /// <summary>
@@ -112,15 +106,16 @@ namespace Ksu.Cis300.NameLookup
         public bool TryGetValue(TKey k, out TValue v)
         {
             CheckKey(k);
-            BinaryTreeNode<KeyValuePair<TKey, TValue>> p = Find(k, _elements);
-            if (p == null)
+            int loc = GetLocation(k);
+            LinkedListCell<KeyValuePair<TKey, TValue>> newCell = GetCell(k, _elements[loc]);
+            if (newCell == null)
             {
                 v = default(TValue);
                 return false;
             }
             else
             {
-                v = p.Data.Value;
+                v = newCell.Data.Value;
                 return true;
             }
         }
@@ -135,113 +130,16 @@ namespace Ksu.Cis300.NameLookup
         public void Add(TKey k, TValue v)
         {
             CheckKey(k);
-            _elements = Add(_elements, k, v);
-        }
-
-        /// <summary>
-        /// Builds the tree obtained by removing the minimum key from the given nonempty
-        /// binary search tree.
-        /// </summary>
-        /// <param name="t">The binary search tree.</param>
-        /// <param name="min">The key and value removed.</param>
-        /// <returns>The result of removing the minimum key from t.</returns>
-        private static BinaryTreeNode<KeyValuePair<TKey, TValue>> 
-            RemoveMininumKey(BinaryTreeNode<KeyValuePair<TKey, TValue>> t, out KeyValuePair<TKey, TValue> min)
-        {
-            if (t.LeftChild == null)
+            int loc = GetLocation(k);
+            LinkedListCell<KeyValuePair<TKey, TValue>> newCell = GetCell(k, _elements[loc]);
+            if (newCell != null)
             {
-                min = t.Data;
-                return t.RightChild;
+                throw new ArgumentException();
             }
             else
             {
-                return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(t.Data, RemoveMininumKey(t.LeftChild, out min),
-                    t.RightChild);
+                Insert(k, v, loc);
             }
-        }
-
-        /// <summary>
-        /// Builds the result of removing the given key from the given binary search tree.
-        /// </summary>
-        /// <param name="key">The key to remove.</param>
-        /// <param name="t">The binary search tree.</param>
-        /// <param name="removed">Whether the key was found.</param>
-        /// <returns>The result of removing the given key from t.</returns>
-        private static BinaryTreeNode<KeyValuePair<TKey, TValue>> Remove(TKey key, BinaryTreeNode<KeyValuePair<TKey, TValue>> t, 
-            out bool removed)
-        {
-            if (t == null)
-            {
-                removed = false;
-                return t;
-            }
-            else
-            {
-                int comp = key.CompareTo(t.Data.Key);
-                if (comp == 0)
-                {
-                    removed = true;
-                    if (t.LeftChild == null)
-                    {
-                        return t.RightChild;
-                    }
-                    else if (t.RightChild == null)
-                    {
-                        return t.LeftChild;
-                    }
-                    else
-                    {
-                        BinaryTreeNode<KeyValuePair<TKey, TValue>> newRight =
-                            RemoveMininumKey(t.RightChild, out KeyValuePair<TKey, TValue> min);
-                        return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(min, t.LeftChild, newRight);
-                    }
-                }
-                else if (comp < 0)
-                {
-                    return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(t.Data, Remove(key, t.LeftChild, out removed), t.RightChild);
-                }
-                else
-                {
-                    return BinaryTreeNode<KeyValuePair<TKey, TValue>>.GetAvlTree(t.Data, t.LeftChild, Remove(key, t.RightChild, out removed));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Removes the given key from the dictionary.
-        /// </summary>
-        /// <param name="k">The key to remove..</param>
-        /// <returns>Whether the given key was found.</returns>
-        public bool Remove(TKey k)
-        {
-            CheckKey(k);
-            _elements = Remove(k, _elements, out bool removed);
-            return removed;
-        }
-
-        /// <summary>
-        /// Copies the contents of the given binary search tree to the end of the given list
-        /// in order of keys.
-        /// </summary>
-        /// <param name="t">The binary search tree to copy.</param>
-        /// <param name="list">The list to copy to.</param>
-        private static void CopyTo(BinaryTreeNode<KeyValuePair<TKey, TValue>> t, List<KeyValuePair<TKey, TValue>> list)
-        {
-            if (t != null)
-            {
-                CopyTo(t.LeftChild, list);
-                list.Add(t.Data);
-                CopyTo(t.RightChild, list);
-            }
-        }
-
-        /// <summary>
-        /// Copies the contents of the dictionary to the end of the given list in order of keys.
-        /// </summary>
-        /// <param name="list">The list to copy to.</param>
-        public void CopyTo(List<KeyValuePair<TKey, TValue>> list)
-        {
-            CopyTo(_elements, list);
         }
     }
 }

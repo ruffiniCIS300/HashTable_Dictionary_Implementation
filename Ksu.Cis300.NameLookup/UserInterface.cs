@@ -1,5 +1,5 @@
 ﻿/* UserInterface.cs
- * Author: Rod Howell
+ * Author: Nick Ruffini
  */
 using System;
 using System.Collections.Generic;
@@ -66,7 +66,7 @@ namespace Ksu.Cis300.NameLookup
                 try
                 {
                     _nameInformation = ReadFile(uxOpenDialog.FileName);
-                    _nameInformation.Drawing.Show();
+                    MessageBox.Show("File successfully read.");
                 }
                 catch (Exception ex)
                 {
@@ -103,14 +103,7 @@ namespace Ksu.Cis300.NameLookup
         /// <param name="e"></param>
         private void uxRemove_Click(object sender, EventArgs e)
         {
-            string name = uxName.Text.Trim().ToUpper();
-            if (!_nameInformation.Remove(name))
-            {
-                MessageBox.Show("Name not found.");
-            }
-            _nameInformation.Drawing.Show();
-            uxFrequency.Text = "";
-            uxRank.Text = "";
+
         }
 
         /// <summary>
@@ -123,7 +116,7 @@ namespace Ksu.Cis300.NameLookup
             if (uxSaveDialog.ShowDialog() == DialogResult.OK)
             {
                 List<KeyValuePair<string, FrequencyAndRank>> list = new List<KeyValuePair<string, FrequencyAndRank>>();
-                _nameInformation.CopyTo(list);
+                //_nameInformation.CopyTo(list);
                 try
                 {
                     using (StreamWriter output = new StreamWriter(uxSaveDialog.FileName))
